@@ -1,0 +1,129 @@
+function [grampc,Tsim,grampc_sdata, cost, param] = initData()
+
+% Start- und Zielzustaende Ball / Initial position Ball
+% for set point change
+%param.xK0 = 0.0;
+%param.yK0 = 0.0; 
+
+param.xK0 = 0.0;
+param.yK0 = 0.1; 
+
+param.xKsoll = 0; 
+param.yKsoll = 0.15;
+
+% Parameter definition
+% Initial values and setpoints of the states
+user.param.x0    = [ param.xK0, 0.0, 0.0, 0.0, ...
+                     param.yK0, 0.0, 0.0, 0.0 ];
+user.param.xdes  = [ param.xKsoll, 0.0, 0.0, 0.0, ...
+                     param.yKsoll, 0.0, 0.0, 0.0 ];
+
+% Initial values, setpoints and limits of the inputs
+user.param.u0    = [ 0.0, 0.0 ];
+user.param.udes  = [ 0.0, 0.0 ];
+user.param.umax  = [ 10, 23 ]; %TODO Stellgrößenbeschränkung / Input constraints
+user.param.umin  = [ -10, -23 ];
+
+
+% Time variables
+user.param.Thor  =     1;     %TODO Prädiktionshorizont / Prediction horizon
+
+user.param.dt    =    0.001;      %TODO Sampling time
+
+user.param.t0    = 0.0;     % time at the current sampling step
+
+
+%% Option definition
+% Basic algorithmic options
+user.opt.Nhor =      20;       %TODO Number of steps for the system integration
+
+user.opt.MaxGradIter =   5;   %TODO Gradientiterationen
+user.opt.MaxMultIter =   2;   %TODO Multplikator-Updates
+
+user.opt.TerminalCost = 'on'; %TODO 'on' or 'off'
+
+% Additional Parameter
+% user.opt.Integrator = 'euler';
+% user.opt.LineSearchExpAutoFallback = 'off';
+% user.opt.LineSearchType = 'adaptive';
+
+% Constraints 
+user.opt.InequalityConstraints = 'on';
+user.opt.ConstraintsAbsTol = 1e-3*[1 1 1 1 1 1 1 1];
+
+% optional settings for a better performance
+% user.opt.LineSearchInit = 1e-3;
+% user.opt.LineSearchExpAutoFallback = 'off';
+user.opt.PenaltyMin = 1e3; % Comment line (grampc = CmexFiles.grampc_estim_penmin_Cmex(grampc,1);) to use this option value
+
+%% Userparameter definition 
+% e.g. system parameters or weights for the cost function
+
+% Art der Regelung / Control type
+%param.controlType = 0;      % AP-Wechsel / Setpoint change
+param.controlType = 1;    % Trajektorienfolgeregelung / Trajectory tracking
+
+% Parameter Solltrajektorie / Parameter target trajectory
+param.ax = 0.1;
+param.ay = 0.1;
+param.bx = 2;   % Type: 1 Kreis/Circle, 2 Acht/Eight, 4 doppelte 8/double eight
+
+
+% Trajektorenfolgeregelung / Trajectory tracking
+if param.controlType == 1
+    param.vsoll = 1;
+else
+    param.vsoll = 0;
+end
+
+
+% Kostenfunktion Gewichtungen / Cost function weights
+cost.xK = 2;
+cost.yK = 2;
+cost.vK = 2;
+
+cost.theta = 0.5;
+cost.vTheta = 1;
+cost.phi = 0.5;
+cost.vPhi = 0.5;
+
+cost.u1 = 0.01;
+cost.u2 = 0.01;
+
+t = 0; %Systemtime
+
+pCost = [cost.xK, cost.yK, cost.vK, ...
+         cost.theta, cost.vTheta, cost.phi, cost.vPhi, ...
+         cost.u1, cost.u2];
+pTraj = [param.ax, param.ay, param.bx, param.vsoll];
+userparam = [pCost, pTraj, param.controlType, t];
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Grampc initialization
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+grampc = CmexFiles.grampc_init_Cmex(userparam);
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Update grampc struct while ensuring correct data types
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+grampc = grampc_update_struct_grampc(grampc,user);
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Simulation time
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if nargout>1
+    Tsim = 12.5;
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Simulink data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Converting the grampc struct to a code generation compatible format for
+% the use in simulink
+if nargout>2
+    grampc_sdata = grampc_generate_sdata(grampc);
+end

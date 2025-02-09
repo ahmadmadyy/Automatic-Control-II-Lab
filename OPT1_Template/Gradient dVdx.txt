@@ -1,0 +1,36 @@
+/** Gradient dV/dx **/
+void dVdx(typeRNum *out, ctypeRNum T, ctypeRNum *x, ctypeRNum *p, ctypeRNum *xdes, typeUSERPARAM *userparam)
+{
+    typeRNum* S = (typeRNum*)userparam + 10; // Terminal weighting matrix
+    typeRNum temp = 0;
+
+    // Loop through all state variables
+    for (typeInt i = 0; i < 6; ++i)
+    {
+        if (i == 0)
+        {
+            // For x_C = x[0], transformed as x_C + l * sin(theta)
+            temp = x[0] + x[2] * sin(x[4]);
+            out[i] = S[i] * (temp - xdes[i]); // Derivative of cost w.r.t. x[0]
+        }
+        else if (i == 2)
+        {
+            // For l = x[2], transformed as 0.72 - l * cos(theta)
+            temp = 0.72 - x[2] * cos(x[4]);
+            out[i] = S[i] * (temp - xdes[i]) * (-cos(x[4])); // Chain rule applied
+        }
+        else if (i == 4)
+        {
+            // For theta = x[4], contributions from both transformations
+            typeRNum dxC_dtheta = x[2] * cos(x[4]); // From x_C + l * sin(theta)
+            typeRNum dl_dtheta = -x[2] * sin(x[4]); // From 0.72 - l * cos(theta)
+            out[i] = S[0] * (x[0] + x[2] * sin(x[4]) - xdes[0]) * dxC_dtheta +
+                     S[2] * (0.72 - x[2] * cos(x[4]) - xdes[2]) * dl_dtheta;
+        }
+        else
+        {
+            // For all other state variables, standard quadratic term
+            out[i] = S[i] * (x[i] - xdes[i]);
+        }
+    }
+}
